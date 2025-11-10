@@ -353,7 +353,7 @@ class _SendTabState extends State<SendTab> {
 
   Future<void> _sendFile(String path) async {
     final provider = context.read<SendmeProvider>();
-    await provider.sendFile(path);
+    await provider.sendFileToPeer(path);
   }
 
   Future<void> _copyTicket(String ticket) async {
@@ -572,7 +572,7 @@ class _ReceiveTabState extends State<ReceiveTab> {
 
   Future<void> _receiveFile(String ticket) async {
     final provider = context.read<SendmeProvider>();
-    await provider.receiveFile(ticket);
+    await provider.receiveFileFromPeer(ticket);
   }
 
   Widget _buildReceiveResultInfo(ReceiveResult result) {

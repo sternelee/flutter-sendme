@@ -24,6 +24,32 @@ pub enum ProgressOperation {
     Connect,
 }
 
+// Stream-based progress callback for real-time updates
+#[flutter_rust_bridge::frb]
+pub struct ProgressStream {
+    #[frb(ignore)]
+    pub receiver: Option<mpsc::UnboundedReceiver<ProgressInfo>>,
+}
+
+impl ProgressStream {
+    pub fn new() -> (Self, ProgressSender) {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        let stream = ProgressStream {
+            receiver: Some(receiver),
+        };
+        let sender = Arc::new(Mutex::new(Some(sender)));
+        (stream, sender)
+    }
+
+    pub fn try_recv(&mut self) -> Option<ProgressInfo> {
+        if let Some(ref mut receiver) = self.receiver {
+            receiver.try_recv().ok()
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SendResult {
     pub ticket: String,

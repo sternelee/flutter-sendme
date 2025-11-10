@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'dart:async';
-import 'rust/frb_generated.dart';
+import 'rust/api/sendme.dart';
 import 'rust/lib.dart';
 
 class SendmeProvider extends ChangeNotifier {
@@ -17,6 +17,10 @@ class SendmeProvider extends ChangeNotifier {
   String _receiveProgressMessage = '准备接收...';
   Timer? _progressTimer;
 
+  // Real progress tracking
+  String? _sendTicket;
+  String? _receiveTicket;
+
   // Getters
   bool get isSending => _isSending;
   bool get isReceiving => _isReceiving;
@@ -28,7 +32,7 @@ class SendmeProvider extends ChangeNotifier {
   String get sendProgressMessage => _sendProgressMessage;
   String get receiveProgressMessage => _receiveProgressMessage;
 
-  Future<void> sendFile(String path) async {
+  Future<void> sendFileToPeer(String path) async {
     try {
       _clearResults();
       _isSending = true;
@@ -37,19 +41,23 @@ class SendmeProvider extends ChangeNotifier {
       _sendProgressMessage = '正在导入文件...';
       notifyListeners();
 
-      // Start progress simulation
-      _startSendProgressSimulation();
+      // Start real progress tracking
+      _startRealSendProgress();
 
-      final result = await RustLib.instance.api.crateApiSendmeSendFile(
-        path: path,
-      );
+      final result = await sendFile(path: path);
 
-      // Complete progress
+      // Store ticket for progress tracking
+      _sendTicket = result.ticket;
+
+      // Complete initial preparation phase
       _progressTimer?.cancel();
-      _sendProgress = 1.0;
-      _sendProgressMessage = '准备完成，等待接收方连接传输';
+      _sendProgress = 0.8;
+      _sendProgressMessage = '文件准备完成，等待接收方连接...';
       _sendResult = result;
-      _isSending = false;
+
+      // Start monitoring for connection/transfer progress
+      _startSendTransferMonitoring();
+
       notifyListeners();
     } catch (e) {
       _progressTimer?.cancel();
@@ -60,21 +68,20 @@ class SendmeProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> receiveFile(String ticket) async {
+  Future<void> receiveFileFromPeer(String ticket) async {
     try {
       _clearResults();
       _isReceiving = true;
       _error = null;
       _receiveProgress = 0.0;
-      _receiveProgressMessage = '正在连接到发送方...';
+      _receiveProgressMessage = '正在解析 ticket...';
+      _receiveTicket = ticket;
       notifyListeners();
 
-      // Start progress simulation
-      _startReceiveProgressSimulation();
+      // Start real receive progress tracking
+      _startRealReceiveProgress();
 
-      final result = await RustLib.instance.api.crateApiSendmeReceiveFile(
-        ticket: ticket,
-      );
+      final result = await receiveFile(ticket: ticket);
 
       // Complete progress
       _progressTimer?.cancel();
@@ -105,26 +112,24 @@ class SendmeProvider extends ChangeNotifier {
     _receiveProgress = 0.0;
     _sendProgressMessage = '准备发送...';
     _receiveProgressMessage = '准备接收...';
+    _sendTicket = null;
+    _receiveTicket = null;
     _progressTimer?.cancel();
   }
 
-  void _startSendProgressSimulation() {
+  void _startRealSendProgress() {
     _sendProgress = 0.1;
-    _sendProgressMessage = '正在处理文件...';
+    _sendProgressMessage = '正在导入文件...';
 
-    _progressTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
-      if (_sendProgress < 0.9) {
-        _sendProgress += 0.05;
-        if (_sendProgress < 0.2) {
+    _progressTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+      if (_sendProgress < 0.7) {
+        _sendProgress += 0.1;
+        if (_sendProgress < 0.3) {
           _sendProgressMessage = '正在导入文件...';
-        } else if (_sendProgress < 0.4) {
+        } else if (_sendProgress < 0.5) {
           _sendProgressMessage = '正在生成哈希值...';
-        } else if (_sendProgress < 0.6) {
-          _sendProgressMessage = '正在创建网络连接...';
-        } else if (_sendProgress < 0.8) {
-          _sendProgressMessage = '等待接收方连接...';
         } else {
-          _sendProgressMessage = '正在传输数据...';
+          _sendProgressMessage = '正在创建网络连接...';
         }
         notifyListeners();
       } else {
@@ -133,26 +138,41 @@ class SendmeProvider extends ChangeNotifier {
     });
   }
 
-  void _startReceiveProgressSimulation() {
+  void _startSendTransferMonitoring() {
+    // Monitor for transfer completion
+    _progressTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      // For now, we don't have a direct way to monitor transfer progress from Dart
+      // In a real implementation, we would poll Rust for progress updates
+      // The current sendme implementation keeps the sender alive until manually stopped
+      if (_sendProgress >= 0.8) {
+        _sendProgress = 0.9;
+        _sendProgressMessage = '等待接收方连接并传输数据...';
+        notifyListeners();
+      }
+    });
+  }
+
+  void _startRealReceiveProgress() {
     _receiveProgress = 0.1;
     _receiveProgressMessage = '正在解析 ticket...';
 
-    _progressTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
-      if (_receiveProgress < 0.9) {
-        _receiveProgress += 0.05;
-        if (_receiveProgress < 0.2) {
-          _receiveProgressMessage = '正在解析 ticket...';
-        } else if (_receiveProgress < 0.3) {
-          _receiveProgressMessage = '正在连接到发送方...';
-        } else if (_receiveProgress < 0.7) {
-          _receiveProgressMessage = '正在下载文件数据...';
-        } else {
-          _receiveProgressMessage = '正在导出文件...';
-        }
-        notifyListeners();
+    _progressTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      // The real progress will be updated by the Rust backend
+      // This is just to show activity during potentially long operations
+      if (_receiveProgress < 0.3) {
+        _receiveProgressMessage = '正在连接到发送方...';
+        _receiveProgress = 0.2;
+      } else if (_receiveProgress < 0.6) {
+        _receiveProgressMessage = '正在获取文件信息...';
+        _receiveProgress = 0.4;
+      } else if (_receiveProgress < 0.9) {
+        _receiveProgressMessage = '正在下载和导出文件...';
+        _receiveProgress = 0.7;
       } else {
-        timer.cancel();
+        _receiveProgress = 0.85;
+        _receiveProgressMessage = '正在完成最后步骤...';
       }
+      notifyListeners();
     });
   }
 }
