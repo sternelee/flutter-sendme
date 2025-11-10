@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__jean-memory__jean_memory",
+      "Bash(flutter_rust_bridge_codegen:*)",
+      "Bash(cargo check:*)",
+      "Bash(flutter pub get:*)",
+      "Bash(cat:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(flutter doctor:*)",
+      "Bash(flutter run:*)",
+      "Bash(cargo clean:*)",
+      "Bash(pod install:*)",
+      "Bash(cargo build:*)",
+      "Bash(nc:*)",
+      "Bash(cargo doc:*)",
+      "Bash(test_file.txt)",
+      "Bash(tee:*)",
+      "Bash(git add:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "mcp_box"
+  ]
+}
