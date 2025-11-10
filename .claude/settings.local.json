@@ -16,7 +16,8 @@
       "Bash(cargo doc:*)",
       "Bash(test_file.txt)",
       "Bash(tee:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
